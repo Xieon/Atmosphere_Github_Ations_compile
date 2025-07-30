@@ -1,9 +1,9 @@
-name: Build & Release Atmosphère
+name: Build Atmosphère on master
 
 on:
   push:
-    tags:
-      - 'v*'
+    branches:
+      - master
 
 jobs:
   build:
@@ -25,27 +25,17 @@ jobs:
       - name: Build Atmosphère
         run: make -j$(nproc)
 
-      - name: Create release zip
+      - name: Gather Atmosphère output folders and fusee.bin
         run: |
-          mkdir -p release_output
-          cp -r output/* release_output/ || true
-          zip -r atmosphere_build.zip release_output
+          mkdir -p release_package
+          # Copy atmosphere and switch folders if they exist
+          cp -r atmosphere release_package/ || echo "No atmosphere folder found"
+          cp -r switch release_package/ || echo "No switch folder found"
+          # Copy fusee.bin from output directory (adjust path if needed)
+          cp output/fusee.bin release_package/ || echo "No fusee.bin found in output"
 
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
         with:
-          name: ${{ github.ref_name }}
-          tag_name: ${{ github.ref_name }}
-          body: |
-            ✅ This is an automated release of Atmosphère based on tag `${{ github.ref_name }}`
-            Built via GitHub Actions.
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Upload release asset
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ github.ref_name }}
-          files: atmosphere_build.zip
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          name: atmosphere-release-package
+          path: release_package/
