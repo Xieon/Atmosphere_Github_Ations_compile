@@ -10,7 +10,7 @@ Atmosphère is a work-in-progress customized firmware for the Nintendo Switch.
 
 Components
 =====
-
+'
 Atmosphère consists of multiple components, each of which replaces/modifies a different component of the system:
 
 * Fusée: First-stage Loader, responsible for loading and validating stage 2 (custom TrustZone) plus package2 (Kernel/FIRM sysmodules), and patching them as needed. This replaces all functionality normally in Package1loader/NX Bootloader.
