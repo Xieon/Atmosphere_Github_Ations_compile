@@ -16,11 +16,24 @@ jobs:
           submodules: recursive
           fetch-depth: 0
 
-      - name: Install dependencies
+      - name: Install devkitPro and dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y build-essential cmake ninja-build python3-pip \
-            gcc-arm-none-eabi libarchive-tools
+            libarchive-tools wget unzip
+          
+          mkdir -p $HOME/devkitpro
+          export DEVKITPRO=$HOME/devkitpro
+          wget https://github.com/devkitPro/buildscripts/releases/latest/download/devkitpro-pacman-x86_64-linux.tar.xz -O devkitpro-pacman.tar.xz
+          tar -xf devkitpro-pacman.tar.xz -C $HOME/devkitpro
+          
+          export PATH=$DEVKITPRO/devkitpro-pacman/bin:$PATH
+          yes | $DEVKITPRO/devkitpro-pacman/bin/devkitpro-pacman -Syu
+          yes | $DEVKITPRO/devkitpro-pacman/bin/devkitpro-pacman -S devkitARM
+        
+          echo "DEVKITPRO=$DEVKITPRO" >> $GITHUB_ENV
+          echo "DEVKITARM=$DEVKITPRO/devkitARM" >> $GITHUB_ENV
+          echo "PATH=$DEVKITPRO/devkitpro-pacman/bin:$DEVKITPRO/devkitARM/bin:$PATH" >> $GITHUB_ENV
 
       - name: Build Atmosphère
         run: make -j$(nproc)
@@ -28,10 +41,8 @@ jobs:
       - name: Gather Atmosphère output folders and fusee.bin
         run: |
           mkdir -p release_package
-          # Copy atmosphere and switch folders if they exist
           cp -r atmosphere release_package/ || echo "No atmosphere folder found"
           cp -r switch release_package/ || echo "No switch folder found"
-          # Copy fusee.bin from output directory (adjust path if needed)
           cp output/fusee.bin release_package/ || echo "No fusee.bin found in output"
 
       - name: Upload build artifacts
