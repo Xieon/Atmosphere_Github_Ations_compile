@@ -16,37 +16,27 @@ jobs:
           submodules: recursive
           fetch-depth: 0
 
-      - name: Install devkitPro and dependencies
+      - name: Install devkitPro and devkitARM using official script
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential cmake ninja-build python3-pip \
-            libarchive-tools wget unzip
-          
-          mkdir -p $HOME/devkitpro
-          export DEVKITPRO=$HOME/devkitpro
-          wget https://github.com/devkitPro/buildscripts/releases/latest/download/devkitpro-pacman-x86_64-linux.tar.xz -O devkitpro-pacman.tar.xz
-          tar -xf devkitpro-pacman.tar.xz -C $HOME/devkitpro
-          
-          export PATH=$DEVKITPRO/devkitpro-pacman/bin:$PATH
-          yes | $DEVKITPRO/devkitpro-pacman/bin/devkitpro-pacman -Syu
-          yes | $DEVKITPRO/devkitpro-pacman/bin/devkitpro-pacman -S devkitARM
-        
-          echo "DEVKITPRO=$DEVKITPRO" >> $GITHUB_ENV
-          echo "DEVKITARM=$DEVKITPRO/devkitARM" >> $GITHUB_ENV
-          echo "PATH=$DEVKITPRO/devkitpro-pacman/bin:$DEVKITPRO/devkitARM/bin:$PATH" >> $GITHUB_ENV
+          sudo apt-get install -y build-essential cmake ninja-build python3-pip libarchive-tools curl
+          curl -fsSL https://devkitpro.org/devkitpro-pacman/install-devkitpro-pacman.sh | bash
+
+          echo "DEVKITPRO=/opt/devkitpro" >> $GITHUB_ENV
+          echo "DEVKITARM=/opt/devkitpro/devkitARM" >> $GITHUB_ENV
+          echo "PATH=/opt/devkitpro/tools/bin:/opt/devkitpro/devkitARM/bin:$PATH" >> $GITHUB_ENV
 
       - name: Build Atmosphère
         run: make -j$(nproc)
 
-      - name: Gather Atmosphère output folders and fusee.bin
+      - name: Package release zip
         run: |
-          mkdir -p release_package
-          cp -r atmosphere release_package/ || echo "No atmosphere folder found"
-          cp -r switch release_package/ || echo "No switch folder found"
-          cp output/fusee.bin release_package/ || echo "No fusee.bin found in output"
+          mkdir release_package
+          cp -r atmosphere switch release_package/
+          zip -r atmosphere_release.zip release_package
 
-      - name: Upload build artifacts
+      - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: atmosphere-release-package
-          path: release_package/
+          name: atmosphere-release
+          path: atmosphere_release.zip
