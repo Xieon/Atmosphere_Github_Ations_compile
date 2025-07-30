@@ -16,15 +16,19 @@ jobs:
           submodules: recursive
           fetch-depth: 0
 
-      - name: Install devkitPro and devkitARM using official script
+      - name: Install devkitPro and toolchains
         run: |
           sudo apt-get update
           sudo apt-get install -y build-essential cmake ninja-build python3-pip libarchive-tools curl
           curl -fsSL https://devkitpro.org/devkitpro-pacman/install-devkitpro-pacman.sh | bash
+          
+          /opt/devkitpro/devkitpro-pacman/bin/devkitpro-pacman -Syu --noconfirm
+          /opt/devkitpro/devkitpro-pacman/bin/devkitpro-pacman -S --noconfirm devkitARM devkitA64
 
           echo "DEVKITPRO=/opt/devkitpro" >> $GITHUB_ENV
           echo "DEVKITARM=/opt/devkitpro/devkitARM" >> $GITHUB_ENV
-          echo "PATH=/opt/devkitpro/tools/bin:/opt/devkitpro/devkitARM/bin:$PATH" >> $GITHUB_ENV
+          echo "DEVKITA64=/opt/devkitpro/devkitA64" >> $GITHUB_ENV
+          echo "PATH=/opt/devkitpro/tools/bin:/opt/devkitpro/devkitARM/bin:/opt/devkitpro/devkitA64/bin:$PATH" >> $GITHUB_ENV
 
       - name: Build Atmosphère
         run: make -j$(nproc)
