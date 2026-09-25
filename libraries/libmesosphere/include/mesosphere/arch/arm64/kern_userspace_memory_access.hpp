@@ -35,7 +35,7 @@ namespace ams::kern::arch::arm64 {
                     static bool CopyMemoryToUser(void *dst, const void *src, size_t size);
                     static bool CopyMemoryToUserAligned32Bit(void *dst, const void *src, size_t size);
                     static bool CopyMemoryToUserAligned64Bit(void *dst, const void *src, size_t size);
-                    static bool CopyMemoryToUserSize32Bit(void *dst, const void *src);
+                    static bool CopyMemoryToUserSize32Bit(void *dst, u32 value);
                     static s32  CopyStringToUser(void *dst, const void *src, size_t size);
 
                     static bool UpdateLockAtomic(u32 *out, u32 *address, u32 if_zero, u32 new_orr_mask);
@@ -77,7 +77,7 @@ namespace ams::kern::arch::arm64 {
 
             static bool CopyMemoryFromUserSize32BitWithSupervisorAccess(void *dst, const void *src) {
                 /* Check that the address is within the valid userspace range. */
-                if (const uintptr_t src_uptr = reinterpret_cast<uintptr_t>(src); src_uptr < ams::svc::AddressNullGuard32Size || (src_uptr + sizeof(u32) - 1) >= ams::svc::AddressMemoryRegion39Size) {
+                if (const uintptr_t src_uptr = reinterpret_cast<uintptr_t>(src); src_uptr < ams::svc::AddressNullGuard32Size || (src_uptr + sizeof(u32) - 1) >= ams::svc::AddressMemoryRegion42Size) {
                     return false;
                 }
 
@@ -100,8 +100,8 @@ namespace ams::kern::arch::arm64 {
                 return Impl::CopyMemoryToUserAligned64Bit(dst, src, size);
             }
 
-            static bool CopyMemoryToUserSize32Bit(void *dst, const void *src) {
-                return Impl::CopyMemoryToUserSize32Bit(dst, src);
+            static bool CopyMemoryToUserSize32Bit(void *dst, u32 value) {
+                return Impl::CopyMemoryToUserSize32Bit(dst, value);
             }
 
             static s32  CopyStringToUser(void *dst, const void *src, size_t size) {

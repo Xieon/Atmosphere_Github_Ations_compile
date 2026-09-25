@@ -119,18 +119,16 @@ namespace ams::kern::arch::arm64 {
         MESOSPHERE_UNUSED(core_id);
     }
 
-    Result KPageTable::InitializeForKernel(void *table, KVirtualAddress start, KVirtualAddress end) {
+    void KPageTable::InitializeForKernel(void *table, KVirtualAddress start, KVirtualAddress end) {
         /* Initialize basic fields. */
         m_asid = 0;
         m_manager = Kernel::GetSystemSystemResource().GetPageTableManagerPointer();
 
         /* Initialize the base page table. */
-        MESOSPHERE_R_ABORT_UNLESS(KPageTableBase::InitializeForKernel(true, table, start, end));
-
-        R_SUCCEED();
+        KPageTableBase::InitializeForKernel(table, start, end);
     }
 
-    Result KPageTable::InitializeForProcess(ams::svc::CreateProcessFlag flags, bool from_back, KMemoryManager::Pool pool, KProcessAddress code_address, size_t code_size, KSystemResource *system_resource, KResourceLimit *resource_limit, size_t process_index) {
+    Result KPageTable::InitializeForProcess(ams::svc::CreateProcessParameterFlag flags, bool from_back, KMemoryManager::Pool pool, KProcessAddress code_address, size_t code_size, KSystemResource *system_resource, KResourceLimit *resource_limit, size_t process_index) {
         /* Determine our ASID */
         m_asid = process_index + 1;
         MESOSPHERE_ABORT_UNLESS(0 < m_asid && m_asid < util::size(s_ttbr0_entries));
@@ -146,14 +144,14 @@ namespace ams::kern::arch::arm64 {
         const size_t as_width = GetAddressSpaceWidth(flags);
         const KProcessAddress as_start = 0;
         const KProcessAddress as_end   = (1ul << as_width);
-        R_TRY(KPageTableBase::InitializeForProcess(flags, from_back, pool, GetVoidPointer(ttbr0_virt), as_start, as_end, code_address, code_size, system_resource, resource_limit));
+        R_TRY(KPageTableBase::InitializeForProcess(flags, from_back, GetVoidPointer(ttbr0_virt), as_start, as_end, pool, code_address, code_size, system_resource, resource_limit));
 
         /* Note that we've updated the table (since we created it). */
         this->NoteUpdated();
         R_SUCCEED();
     }
 
-    Result KPageTable::Finalize() {
+    void KPageTable::Finalize() {
         /* Only process tables should be finalized. */
         MESOSPHERE_ASSERT(!this->IsKernel());
 
@@ -271,8 +269,6 @@ namespace ams::kern::arch::arm64 {
             /* Perform inherited finalization. */
             KPageTableBase::Finalize();
         }
-
-        R_SUCCEED();
     }
 
     Result KPageTable::OperateImpl(PageLinkedList *page_list, KProcessAddress virt_addr, size_t num_pages, KPhysicalAddress phys_addr, bool is_pa_valid, const KPageProperties properties, OperationType operation, bool reuse_ll) {
@@ -733,6 +729,9 @@ namespace ams::kern::arch::arm64 {
             }
         }
         MESOSPHERE_ASSERT(mapped_pages == num_pages);
+        
+        /* TODO: Unused variable. */
+        AMS_UNUSED(mapped_pages);
 
         /* Perform what coalescing we can. */
         this->MergePages(orig_virt_addr, num_pages, page_list);
@@ -942,7 +941,7 @@ namespace ams::kern::arch::arm64 {
                 /* If we should flush entries, do so. */
                 if ((apply_option & ApplyOption_FlushDataCache) != 0) {
                     if (IsHeapPhysicalAddress(next_entry.phys_addr)) {
-                        cpu::FlushDataCache(GetVoidPointer(GetHeapVirtualAddress(next_entry.phys_addr)), next_entry.block_size);
+                        MESOSPHERE_R_ABORT_UNLESS(cpu::FlushDataCache(GetVoidPointer(GetHeapVirtualAddress(next_entry.phys_addr)), next_entry.block_size));
                     }
                 }
 

@@ -100,8 +100,8 @@ namespace ams::kern {
         KProcessPageTable &target_pt   = process->GetPageTable();
 
         /* Verify that the regions are in range. */
-        R_UNLESS(target_pt.Contains(address, size),  svc::ResultInvalidCurrentMemory());
-        R_UNLESS(debugger_pt.Contains(buffer, size), svc::ResultInvalidCurrentMemory());
+        R_UNLESS(target_pt.Contains(address, size),           svc::ResultInvalidCurrentMemory());
+        R_UNLESS(debugger_pt.IsSafeUserPointer(buffer, size), svc::ResultInvalidCurrentMemory());
 
         /* Iterate over the target process's memory blocks. */
         KProcessAddress cur_address = address;
@@ -166,8 +166,8 @@ namespace ams::kern {
         KProcessPageTable &target_pt   = process->GetPageTable();
 
         /* Verify that the regions are in range. */
-        R_UNLESS(target_pt.Contains(address, size),  svc::ResultInvalidCurrentMemory());
-        R_UNLESS(debugger_pt.Contains(buffer, size), svc::ResultInvalidCurrentMemory());
+        R_UNLESS(target_pt.Contains(address, size),           svc::ResultInvalidCurrentMemory());
+        R_UNLESS(debugger_pt.IsSafeUserPointer(buffer, size), svc::ResultInvalidCurrentMemory());
 
         /* Iterate over the target process's memory blocks. */
         KProcessAddress cur_address = address;
@@ -416,7 +416,8 @@ namespace ams::kern {
         KProcess * const target = this->GetProcessUnsafe();
 
         /* Terminate the process. */
-        target->Terminate();
+        /* NOTE: This result is seemingly-intentionally not checked by Nintendo. */
+        static_cast<void>(target->Terminate(-1ll));
 
         R_SUCCEED();
     }
@@ -755,11 +756,13 @@ namespace ams::kern {
                             case ams::svc::DebugException_UndefinedSystemCall:
                                 {
                                     MESOSPHERE_ASSERT(num_params >= 3);
-
-                                    info->info.exception.exception_address    = params[1];
-
-                                    info->info.exception.exception_data_count = 1;
-                                    info->info.exception.exception_data[0]    = params[2];
+                                    
+                                    /* Keep the compiler happy, even though the assert has us covered. */
+                                    if (num_params >= 3) {
+                                        info->info.exception.exception_address    = params[1];
+                                        info->info.exception.exception_data_count = 1;
+                                        info->info.exception.exception_data[0]    = params[2];
+                                    }
                                 }
                                 break;
                             case ams::svc::DebugException_DebuggerAttached:
@@ -772,9 +775,12 @@ namespace ams::kern {
                             case ams::svc::DebugException_UserBreak:
                                 {
                                     MESOSPHERE_ASSERT(num_params >= 2);
-
-                                    info->info.exception.exception_address    = params[1];
-
+                                    
+                                    /* Keep the compiler happy, even though the assert has us covered. */
+                                    if (num_params >= 2) {
+                                        info->info.exception.exception_address = params[1];
+                                    }
+                                    
                                     info->info.exception.exception_data_count = 0;
                                     for (size_t i = 2; i < num_params; ++i) {
                                         info->info.exception.exception_data[info->info.exception.exception_data_count++] = params[i];
@@ -804,8 +810,11 @@ namespace ams::kern {
                             default:
                                 {
                                     MESOSPHERE_ASSERT(num_params >= 2);
-
-                                    info->info.exception.exception_address = params[1];
+                                    
+                                    /* Keep the compiler happy, even though the assert has us covered. */
+                                    if (num_params >= 2) {
+                                        info->info.exception.exception_address = params[1];
+                                    }
                                 }
                                 break;
                         }
@@ -875,7 +884,7 @@ namespace ams::kern {
                 {
                     out->info.create_process.program_id                     = process->GetProgramId();
                     out->info.create_process.process_id                     = process->GetId();
-                    out->info.create_process.flags                          = process->GetCreateProcessFlags();
+                    out->info.create_process.flags                          = process->GetCreateProcessParameterFlags();
                     out->info.create_process.user_exception_context_address = GetInteger(process->GetProcessLocalRegionAddress());
 
                     std::memcpy(out->info.create_process.name, process->GetName(), sizeof(out->info.create_process.name));
@@ -1133,7 +1142,7 @@ namespace ams::kern {
         R_SUCCEED();
     }
 
-    Result KDebugBase::OnExitProcess(KProcess *process) {
+    void KDebugBase::OnExitProcess(KProcess *process) {
         MESOSPHERE_ASSERT(process != nullptr);
 
         /* Check if we're attached to a debugger. */
@@ -1148,11 +1157,9 @@ namespace ams::kern {
                 debug->NotifyAvailable();
             }
         }
-
-        R_SUCCEED();
     }
 
-    Result KDebugBase::OnTerminateProcess(KProcess *process) {
+    void KDebugBase::OnTerminateProcess(KProcess *process) {
         MESOSPHERE_ASSERT(process != nullptr);
 
         /* Check if we're attached to a debugger. */
@@ -1167,21 +1174,17 @@ namespace ams::kern {
                 debug->NotifyAvailable();
             }
         }
-
-        R_SUCCEED();
     }
 
-    Result KDebugBase::OnExitThread(KThread *thread) {
+    void KDebugBase::OnExitThread(KThread *thread) {
         MESOSPHERE_ASSERT(thread != nullptr);
 
         /* Check if we're attached to a debugger. */
         if (KProcess *process = thread->GetOwnerProcess(); process != nullptr && process->IsAttachedToDebugger()) {
             /* If we are, submit the event. */
             const uintptr_t params[2] = { thread->GetId(), static_cast<uintptr_t>(thread->IsTerminationRequested() ? ams::svc::ThreadExitReason_TerminateThread : ams::svc::ThreadExitReason_ExitThread) };
-            R_TRY(OnDebugEvent(ams::svc::DebugEvent_ExitThread, params, util::size(params)));
+            static_cast<void>(OnDebugEvent(ams::svc::DebugEvent_ExitThread, params, util::size(params)));
         }
-
-        R_SUCCEED();
     }
 
 }

@@ -40,6 +40,9 @@ namespace ams::pkg1 {
         KeyGeneration_18_0_0 = 0x11,
         KeyGeneration_19_0_0 = 0x12,
         KeyGeneration_20_0_0 = 0x13,
+        KeyGeneration_21_0_0 = 0x14,
+        KeyGeneration_22_0_0 = 0x15,
+        KeyGeneration_23_0_0 = 0x16,
 
         KeyGeneration_Count,
 
