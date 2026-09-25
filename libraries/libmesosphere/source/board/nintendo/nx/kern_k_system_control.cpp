@@ -74,12 +74,6 @@ namespace ams::kern::board::nintendo::nx {
             return value;
         }
 
-        ALWAYS_INLINE u64 GenerateRandomU64FromSmc() {
-            u64 value;
-            smc::GenerateRandomBytes(std::addressof(value), sizeof(value));
-            return value;
-        }
-
         ALWAYS_INLINE u64 GetConfigU64(smc::ConfigItem which) {
             u64 value;
             smc::GetConfig(&value, 1, which);
@@ -361,10 +355,18 @@ namespace ams::kern::board::nintendo::nx {
         }();
 
         /* Return (possibly) adjusted size. */
-        /* NOTE: On 20.0.0+ the browser requires much more memory in the applet pool in order to function. */
+        /* NOTE: On 20.0.0+ (and even more-so 21.0.0+) the browser requires much more memory in the applet pool in order to function. */
         /* Thus, we have to reduce our extra system memory size by 26 MB to compensate. */
-        const size_t ExtraSystemMemoryForAtmosphere = kern::GetTargetFirmware() >= ams::TargetFirmware_20_0_0 ? 14_MB : 40_MB;
-        return base_pool_size - ExtraSystemMemoryForAtmosphere - KTraceBufferSize;
+        if (kern::GetTargetFirmware() >= ams::TargetFirmware_21_0_0) {
+            constexpr size_t ExtraSystemMemoryForAtmosphere_21_0_0 = 7_MB;
+            return base_pool_size - ExtraSystemMemoryForAtmosphere_21_0_0 - KTraceBufferSize;
+        } else if (kern::GetTargetFirmware() >= ams::TargetFirmware_20_0_0) {
+            constexpr size_t ExtraSystemMemoryForAtmosphere_20_0_0 = 14_MB;
+            return base_pool_size - ExtraSystemMemoryForAtmosphere_20_0_0 - KTraceBufferSize;
+        } else {
+            constexpr size_t ExtraSystemMemoryForAtmosphere = 40_MB;
+            return base_pool_size - ExtraSystemMemoryForAtmosphere - KTraceBufferSize;
+        }
     }
 
     size_t KSystemControl::Init::GetMinimumNonSecureSystemPoolSize() {
@@ -409,7 +411,10 @@ namespace ams::kern::board::nintendo::nx {
         {
             /* Set whether we're in debug mode. */
             {
-                ts->is_not_debug_mode    = !GetConfigBool(smc::ConfigItem::IsDebugMode);
+                ts->is_not_debug_mode     = !GetConfigBool(smc::ConfigItem::IsDebugMode);
+                
+                /* TODO: 23.0.0+ split debug mode into 2 fields. Implement this properly for better accuracy. */
+                ts->is_not_debug_mode2    = ts->is_not_debug_mode;
 
                 /* If we're not in debug mode, we don't want to initialize uart logging. */
                 ts->disable_debug_logging = ts->is_not_debug_mode;
@@ -469,9 +474,9 @@ namespace ams::kern::board::nintendo::nx {
 
         /* Initialize random and resource limit. */
         {
-            u64 seed;
-            smc::GenerateRandomBytes(std::addressof(seed), sizeof(seed));
-            KSystemControlBase::InitializePhase1Base(seed);
+            u8 seed[32];
+            smc::GenerateRandomBytes(seed, sizeof(seed));
+            KSystemControlBase::InitializePhase1Base(seed, sizeof(seed));
         }
 
         /* Configure the Kernel Carveout region. */
@@ -516,32 +521,8 @@ namespace ams::kern::board::nintendo::nx {
     }
 
     /* Randomness. */
-    void KSystemControl::GenerateRandom(u64 *dst, size_t count) {
-        MESOSPHERE_INIT_ABORT_UNLESS(count <= 7);
-        smc::GenerateRandomBytes(dst, count * sizeof(u64));
-    }
-
-    u64 KSystemControl::GenerateRandomRange(u64 min, u64 max) {
-        KScopedInterruptDisable intr_disable;
-        KScopedSpinLock lk(s_random_lock);
-
-
-        if (AMS_LIKELY(!s_uninitialized_random_generator)) {
-            return KSystemControlBase::GenerateUniformRange(min, max, []() ALWAYS_INLINE_LAMBDA -> u64 { return s_random_generator.GenerateRandomU64(); });
-        } else {
-            return KSystemControlBase::GenerateUniformRange(min, max, GenerateRandomU64FromSmc);
-        }
-    }
-
-    u64 KSystemControl::GenerateRandomU64() {
-        KScopedInterruptDisable intr_disable;
-        KScopedSpinLock lk(s_random_lock);
-
-        if (AMS_LIKELY(!s_uninitialized_random_generator)) {
-            return s_random_generator.GenerateRandomU64();
-        } else {
-            return GenerateRandomU64FromSmc();
-        }
+    void KSystemControl::GenerateRandomBytesForUninitialized(void *dst, size_t size) {
+        smc::GenerateRandomBytes(dst, size);
     }
 
     void KSystemControl::SleepSystem() {

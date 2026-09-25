@@ -66,6 +66,9 @@ namespace ams::kern::svc {
             /* Add the thread to the handle table. */
             R_TRY(process.GetHandleTable().Add(out, thread));
 
+            /* Pass the thread handle to the thread local region. */
+            static_cast<ams::svc::ThreadLocalRegion *>(thread->GetThreadLocalRegionHeapAddress())->thread_handle = *out;
+
             R_SUCCEED();
         }
 
@@ -201,6 +204,8 @@ namespace ams::kern::svc {
             /* Get the thread from its handle. */
             KScopedAutoObject thread = GetCurrentProcess().GetHandleTable().GetObject<KThread>(thread_handle);
             R_UNLESS(thread.IsNotNull(), svc::ResultInvalidHandle());
+            
+            R_UNLESS(GetCurrentProcess().GetPageTable().IsSafeUserPointer(KProcessAddress(out_context.GetUnsafePointer()), sizeof(ams::svc::ThreadContext)), svc::ResultInvalidPointer());
 
             /* Require the handle be to a non-current thread in the current process. */
             R_UNLESS(thread->GetOwnerProcess() == GetCurrentProcessPointer(), svc::ResultInvalidHandle());
@@ -225,7 +230,7 @@ namespace ams::kern::svc {
 
             /* Validate that the pointer is in range. */
             if (max_out_count > 0) {
-                R_UNLESS(GetCurrentProcess().GetPageTable().Contains(KProcessAddress(out_thread_ids.GetUnsafePointer()), max_out_count * sizeof(u64)), svc::ResultInvalidCurrentMemory());
+                R_UNLESS(GetCurrentProcess().GetPageTable().IsSafeUserPointer(KProcessAddress(out_thread_ids.GetUnsafePointer()), max_out_count * sizeof(u64)), svc::ResultInvalidPointer());
             }
 
             /* Get the handle table. */

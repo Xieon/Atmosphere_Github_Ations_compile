@@ -34,7 +34,9 @@ namespace ams::erpt::srv {
             auto *record = std::addressof(*it);
             it = s_attachment_list.erase(s_attachment_list.iterator_to(*record));
             if (record->RemoveReference()) {
-                Stream::DeleteStream(Attachment::FileName(record->m_info.attachment_id).name);
+                if (R_FAILED(Stream::DeleteStream(Attachment::FileName(record->m_info.attachment_id).name))) {
+                    /* TODO: Log failure? */
+                }
                 delete record;
             }
         }
@@ -66,7 +68,9 @@ namespace ams::erpt::srv {
 
                 /* Delete the object, if we should. */
                 if (record->RemoveReference()) {
-                    Stream::DeleteStream(Attachment::FileName(record->m_info.attachment_id).name);
+                    const auto delete_res = Stream::DeleteStream(Attachment::FileName(record->m_info.attachment_id).name);
+                    R_ASSERT(delete_res);
+                    AMS_UNUSED(delete_res);
                     delete record;
                 }
             } else {
@@ -80,7 +84,7 @@ namespace ams::erpt::srv {
     Result JournalForAttachments::GetAttachmentList(u32 *out_count, AttachmentInfo *out_infos, size_t max_out_infos, ReportId report_id) {
         if (hos::GetVersion() >= hos::Version_20_0_0) {
             /* TODO: What define gives a minimum of 10? */
-            R_UNLESS(max_out_infos >= 10, erpt::ResultInvalidArgument());
+            R_UNLESS(max_out_infos >= 10, erpt::ResultTooManyOutAttachments());
         }
 
         u32 count = 0;
@@ -128,12 +132,13 @@ namespace ams::erpt::srv {
             }
 
             if (record->m_info.flags.Test<AttachmentFlag::HasOwner>() && JournalForReports::RetrieveRecord(record->m_info.owner_report_id) != nullptr) {
-                /* NOTE: Nintendo does not check the result of storing the new record... */
                 record_guard.Cancel();
-                StoreRecord(record);
+                R_TRY(StoreRecord(record));
             } else {
                 /* If the attachment has no owner (or we deleted the report), delete the file associated with it. */
-                Stream::DeleteStream(Attachment::FileName(record->m_info.attachment_id).name);
+                const auto delete_res = Stream::DeleteStream(Attachment::FileName(record->m_info.attachment_id).name);
+                R_ASSERT(delete_res);
+                AMS_UNUSED(delete_res);
             }
         }
 
@@ -180,8 +185,11 @@ namespace ams::erpt::srv {
 
         R_SUCCEED();
     }
-
-    Result JournalForAttachments::SubmitAttachment(AttachmentId *out, char *name, const u8 *data, u32 data_size) {
+        
+    Result JournalForAttachments::SubmitAttachment(AttachmentId *out, char *name, const u8 *data, u32 data_size, bool lz4_compression) {
+        /* TODO: Implement LZ4 compression on attachments. */
+        AMS_UNUSED(lz4_compression);
+        
         R_UNLESS(data_size > 0,                 erpt::ResultInvalidArgument());
         R_UNLESS(data_size < AttachmentSizeMax, erpt::ResultInvalidArgument());
 
@@ -224,5 +232,5 @@ namespace ams::erpt::srv {
 
         R_SUCCEED();
     }
-
+    
 }
